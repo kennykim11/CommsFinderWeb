@@ -1,0 +1,38 @@
+html {
+    box-sizing: border-box;
+  }
+  *, *:before, *:after {
+    box-sizing: inherit;
+  }
+
+.grid-container {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.half-horizontally {
+    width: 50%;
+    height: 100%;
+    padding: 5px;
+    border-width: 1px;
+    border-color: black;
+    border-style: solid;
+}
+
+.quarter {
+    width: 50%;
+    height: 50%;
+    padding: 5px;
+    border-width: 1px;
+    border-color: black;
+    border-style: solid;
+}
+
+#mainWindow {
+    height: 90vh;
+}
+
+#planeIcon{
+    background-size: 20px 30px;
+}

@@ -29,10 +29,25 @@ html {
     border-style: solid;
 }
 
+.graph-container {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+.third-vertically {
+    width: 100%;
+    padding: 5px;
+    border-width: 1px;
+    border-color: black;
+    border-style: solid;
+}
+
 #mainWindow {
     height: 90vh;
 }
 
-#planeIcon{
-    background-size: 20px 30px;
+#stats {
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 20px;
 }

@@ -16,6 +16,7 @@ var deltaFreqRecord = []
 var lastDeltaFreq = 0
 var recordSize = 0
 var planeRecord = []
+var save = {}
 
 //Assets
 var pulses = []
@@ -30,7 +31,7 @@ var pulseGroupInterval = 200
 const radiusGrowth = 3
 const radiusTimeout = 2000
 // simulation settings
-const timeInterval = 10
+const timeInterval = 100
 const hitCooldownStart = 150
 const collisionRadius = 3
 // graph settings
@@ -38,6 +39,8 @@ const pulseColor = 'red'
 const freqColor = 'green'
 const deltaFreqColor = 'blue'
 const graphInterval = 25
+// save settings
+const saveInterval = 10000
 
 function checkCollision(plane, pulse) {
     //Sees if pulse hit the plane, use collisionRadius
@@ -106,6 +109,20 @@ function redraw(canvas) {
             lastPulseTime = time
             lastFreq = thisFreq
             lastDeltaFreq = thisDeltaFreq
+
+            //Save the data
+            const dataframe = {
+                time: time,
+                freq: thisFreq,
+                dFreq: thisDeltaFreq,
+                pX: plane.x,
+                pY: plane.y,
+                pV: plane.v,
+                pH: plane.heading,
+                eX: emitter.x,
+                eY: emitter.y
+            }
+            save[time] = dataframe
         }
         else {
             if (!(time % graphInterval)){
@@ -113,7 +130,13 @@ function redraw(canvas) {
                 insertToRecord(freqRecord, lastFreq)
                 insertToRecord(deltaFreqRecord, lastDeltaFreq)
             }
-            
+        }
+
+        console.log(time)
+        //check for save
+        if (time % saveInterval == 0){
+            console.log("um")
+            //window.open("data:application/json:base64," + btoa(JSON.stringify(save)))
         }
 
         //Expand pulse
@@ -186,7 +209,7 @@ function drawGraphs(pulse, freq, deltaFreq){
         for (let i=0; i<graph.data.length; i++){
             ctx.lineTo(graph.width-i, graph.height - (scale * (graph.data[i] + offset)))
         }
-        console.log(`Color: ${graph.lineColor}, scale: ${scale}. high: ${scale * Math.max(...graph.data)}, low: ${scale * Math.min(...graph.data)}`)
+        //console.log(`Color: ${graph.lineColor}, scale: ${scale}. high: ${scale * Math.max(...graph.data)}, low: ${scale * Math.min(...graph.data)}`)
         ctx.stroke()
     }
 }
@@ -208,7 +231,9 @@ function drawStats(){
     Emitter: (${oneDec(emitter.x)}, ${oneDec(emitter.y)})
     
     Freq: ${fiveDecMil(lastFreq)}
-    Delta Freq: ${fiveDecMil(lastDeltaFreq)}`
+    Delta Freq: ${fiveDecMil(lastDeltaFreq)}
+    
+    Current Time: ${time}`
 }
 
 window.onload = function(){

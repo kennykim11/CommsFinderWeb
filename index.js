@@ -25,8 +25,8 @@ var emitter = {x: 800, y: 600}
 //Settings
 // pulse settings
 var pulsesPerGroup = 4
-var pulseInterval = 100
-var pulseGroupInterval = 400
+var pulseInterval = 500
+var pulseGroupInterval = 200
 const radiusGrowth = 3
 const radiusTimeout = 2000
 // simulation settings
@@ -226,15 +226,15 @@ window.onload = function(){
     const pulseGraphCanvas = document.getElementById("pulseGraphCanvas")
     const freqGraphCanvas = document.getElementById("freqGraphCanvas")
     const deltaFreqGraphCanvas = document.getElementById("deltaFreqGraphCanvas")
-    const quarterStyle = window.getComputedStyle(document.getElementById("graphsQuarter"))
+    const graphStyle = window.getComputedStyle(deltaFreqGraphCanvas)
     pulseGraphCanvas.lineColor = pulseColor
     freqGraphCanvas.lineColor = freqColor
     deltaFreqGraphCanvas.lineColor = deltaFreqColor
     pulseGraphCanvas.data = pulseRecord
     freqGraphCanvas.data = freqRecord
     deltaFreqGraphCanvas.data = deltaFreqRecord
-    pulseGraphCanvas.width = freqGraphCanvas.width = deltaFreqGraphCanvas.width = +quarterStyle.width.slice(0, -2)
-    pulseGraphCanvas.height = freqGraphCanvas.height = deltaFreqGraphCanvas.height = +quarterStyle.height.slice(0, -2) * 2 / 7
+    pulseGraphCanvas.width = freqGraphCanvas.width = deltaFreqGraphCanvas.width = +graphStyle.width.slice(0, -2)
+    pulseGraphCanvas.height = freqGraphCanvas.height = deltaFreqGraphCanvas.height = +graphStyle.height.slice(0, -2)
     //Getting it a little under 1/3
     recordSize = pulseGraphCanvas.width
 

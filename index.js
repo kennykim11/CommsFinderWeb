@@ -20,20 +20,18 @@ var save = {}
 
 //Assets
 var pulses = []
-var plane = {x: 700, y: 700, v: 0.5, heading: -Math.PI/2}
+var plane = {x: 700, y: 700, v: 0.2, heading: -Math.PI/2}
 var emitter = {x: 800, y: 600}
 
 //Settings
 // pulse settings
-var pulsesPerGroup = 4
-var pulseInterval = 500
-var pulseGroupInterval = 200
-const radiusGrowth = 3
-const radiusTimeout = 2000
+var pulsesPerGroup = 1
+var pulseInterval = 1
+var pulseGroupInterval = 50
+const radiusGrowth = 1
+const radiusTimeout = 800
 // simulation settings
-const timeInterval = 100
-const hitCooldownStart = 150
-const collisionRadius = 3
+const timeInterval = 5
 // graph settings
 const pulseColor = 'red'
 const freqColor = 'green'
@@ -44,8 +42,12 @@ const saveInterval = 10000
 
 function checkCollision(plane, pulse) {
     //Sees if pulse hit the plane, use collisionRadius
-    const deltaPulseToPlane = Math.abs(Math.sqrt((plane.x - pulse.startX)**2 + (plane.y - pulse.startY)**2) - pulse.radius)
-    if (deltaPulseToPlane < collisionRadius) return true
+    const rLessThanPlane = pulse.radius < Math.sqrt((plane.x - pulse.startX)**2 + (plane.y - pulse.startY)**2)
+    if (rLessThanPlane != pulse.rLessThanPlane){
+        pulse.rLessThanPlane = rLessThanPlane
+        return true
+    }
+    return false
 }
 
 function rotateAndDrawImage(context, image, angleInRad, positionX, positionY) {
@@ -60,6 +62,36 @@ function rotateAndDrawImage(context, image, angleInRad, positionX, positionY) {
 function insertToRecord(record, value){
     if (record.length >= recordSize) record.shift(1)
     record.push(value)
+}
+
+function quadraticSolver(a, b, c){
+    //https://stackoverflow.com/a/33454565
+    const insideRoot = Math.pow(b, 2) - (4 * a * c)
+    if (insideRoot < 0) {
+        alert("QUADRATIC ERROR")
+        return [null]
+    }
+    else if (insideRoot == 0) return [b/(-2*a)]
+    else {
+        const result1 = (b + Math.sqrt(insideRoot)) / (-2 * a)
+        const result2 = (b - Math.sqrt(insideRoot)) / (-2 * a)
+        return [result1, result2].filter(x => x > 0).sort()
+    }
+}
+
+function calculateCollisionTime(plane, pulse){
+    //Predict when the plane exactly hit the pulse
+    const vx = plane.v * Math.cos(plane.heading)
+    const vy = plane.v * Math.sin(plane.heading)
+    const r0 = pulse.radius - radiusGrowth
+    const px = plane.x - pulse.startX
+    const py = plane.y - pulse.startY
+    const a = vx**2 + vy**2 - radiusGrowth**2
+    const b = 2 * (vx*py + vy+py - radiusGrowth*r0)
+    const c = px**2 + py**2 - r0**2
+    const quadResult = quadraticSolver(a, b, c)
+    console.log(quadResult)
+    return quadResult[0]
 }
 
 function redraw(canvas) {
@@ -81,6 +113,7 @@ function redraw(canvas) {
             createTime: time,
             startX: emitter.x,
             startY: emitter.y,
+            rLessThanPlane: true, //whether the plane is outside the circle
             radius: 0
         })
         pulsesLeftForGroup -= 1
@@ -89,7 +122,7 @@ function redraw(canvas) {
     //Delete pulse if out of bounds
     if (pulses.length && pulses[0].radius >= radiusTimeout) pulses.shift(1) 
 
-    cv.strokeStyle = 'grey'
+    cv.strokeStyle = '#AAAAAA'
     for (const pulse of pulses){ //For each pulse
         //Draw
         cv.beginPath(); 
@@ -97,16 +130,29 @@ function redraw(canvas) {
         cv.stroke();
 
         //Check for hit
-        if (hitCooldown) hitCooldown -= 1
-        if (checkCollision(plane, pulse) && !hitCooldown) {
-            console.log('HIT')
-            hitCooldown = hitCooldownStart
+        if (checkCollision(plane, pulse)) {
             insertToRecord(pulseRecord, 1)
-            const thisFreq = 1/(time - lastPulseTime)
+            const collisionTime = calculateCollisionTime(plane, pulse)
+            const currentPulseTime = time - timeInterval + collisionTime
+            // console.log(time)
+            // console.log(collisionTime)
+            
+            if (lastPulseTime == 0){
+                lastPulseTime = currentPulseTime
+                continue
+            }
+            const thisFreq = 1/(currentPulseTime - lastPulseTime)
             insertToRecord(freqRecord, thisFreq)
+            console.log(thisFreq)
+
+            if (lastFreq == 0){
+                lastFreq = thisFreq
+                continue
+            }
             const thisDeltaFreq = thisFreq - lastFreq
             insertToRecord(deltaFreqRecord, thisDeltaFreq)
-            lastPulseTime = time
+
+            lastPulseTime = currentPulseTime
             lastFreq = thisFreq
             lastDeltaFreq = thisDeltaFreq
 
@@ -115,14 +161,16 @@ function redraw(canvas) {
                 time: time,
                 freq: thisFreq,
                 dFreq: thisDeltaFreq,
-                pX: plane.x,
-                pY: plane.y,
+                pX: plane.x - plane.v*Math.cos(plane.heading)*(time-currentPulseTime),
+                pY: plane.y - plane.v*Math.sin(plane.heading)*(time-currentPulseTime),
                 pV: plane.v,
                 pH: plane.heading,
                 eX: emitter.x,
                 eY: emitter.y
             }
             save[time] = dataframe
+
+            break
         }
         else {
             if (!(time % graphInterval)){
@@ -130,13 +178,6 @@ function redraw(canvas) {
                 insertToRecord(freqRecord, lastFreq)
                 insertToRecord(deltaFreqRecord, lastDeltaFreq)
             }
-        }
-
-        console.log(time)
-        //check for save
-        if (time % saveInterval == 0){
-            console.log("um")
-            //window.open("data:application/json:base64," + btoa(JSON.stringify(save)))
         }
 
         //Expand pulse
@@ -151,6 +192,20 @@ function redraw(canvas) {
         cv.strokeStyle = '#FF0000' + (255-i).toString(16);
         cv.lineTo(planeRecord[planeRecordLength-1-i].x, planeRecord[planeRecordLength-1-i].y)
         cv.stroke()
+    }
+    
+
+    //check for save
+    if (time % saveInterval == 0 && time != 0){
+        console.log(JSON.stringify(save, function(key, val) {
+            if (typeof(val) == Number){
+                return Number(val.toFixed(3))
+            } else return val
+            }
+        ))
+        //window.open("data:application/json:base64," + btoa(JSON.stringify(save)))
+        //Ha, the string's way too long
+        alert("We saved!")
     }
 }
 

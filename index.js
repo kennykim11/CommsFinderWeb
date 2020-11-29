@@ -16,6 +16,8 @@ var deltaFreqRecord = []
 var lastDeltaFreq = 0
 var recordSize = 0
 var planeRecord = []
+var colorRecord = []
+var lastColor = 'white'
 var save = {}
 
 //Assets
@@ -32,6 +34,8 @@ const radiusGrowth = 1
 const radiusTimeout = 800
 // simulation settings
 const timeInterval = 5
+const estimatedMaxFreq = 0.04
+const estimatedMinFreq = 0
 // graph settings
 const pulseColor = 'red'
 const freqColor = 'green'
@@ -75,7 +79,9 @@ function quadraticSolver(a, b, c){
     else {
         const result1 = (b + Math.sqrt(insideRoot)) / (-2 * a)
         const result2 = (b - Math.sqrt(insideRoot)) / (-2 * a)
-        return [result1, result2].filter(x => x > 0).sort()
+        const filteredResults = [result1, result2].filter(x => x > 0).sort()
+        if (filteredResults.length == 0) {console.log(`a=${a}\nb=${b}\nc=${c}\nresult1=${result1}\nresult2=${result2}`); return null}
+        return filteredResults
     }
 }
 
@@ -90,7 +96,7 @@ function calculateCollisionTime(plane, pulse){
     const b = 2 * (vx*py + vy+py - radiusGrowth*r0)
     const c = px**2 + py**2 - r0**2
     const quadResult = quadraticSolver(a, b, c)
-    console.log(quadResult)
+    if (quadResult == null) {console.log(`vx=${vx}\nvy=${vy}\nr0=${r0}\nradiusGrowth=${radiusGrowth}\npx=${px}\npy=${py}`); alert("Quadratic error")}
     return quadResult[0]
 }
 
@@ -155,6 +161,9 @@ function redraw(canvas) {
             lastPulseTime = currentPulseTime
             lastFreq = thisFreq
             lastDeltaFreq = thisDeltaFreq
+            lastColor = "#" + Math.round((((thisFreq - estimatedMinFreq) / (estimatedMaxFreq - estimatedMinFreq)) * 255)).toString(16).repeat(3)
+            console.log(lastColor)
+            insertToRecord(colorRecord, lastColor)
 
             //Save the data
             const dataframe = {
@@ -177,6 +186,7 @@ function redraw(canvas) {
                 insertToRecord(pulseRecord, 0)
                 insertToRecord(freqRecord, lastFreq)
                 insertToRecord(deltaFreqRecord, lastDeltaFreq)
+                insertToRecord(colorRecord, lastColor)
             }
         }
 
@@ -189,7 +199,8 @@ function redraw(canvas) {
     cv.moveTo(plane.x, plane.y)
     let planeRecordLength = planeRecord.length
     for (let i=0; i<planeRecordLength; i++){
-        cv.strokeStyle = '#FF0000' + (255-i).toString(16);
+        cv.beginPath();
+        cv.strokeStyle = colorRecord[planeRecordLength-1-i]
         cv.lineTo(planeRecord[planeRecordLength-1-i].x, planeRecord[planeRecordLength-1-i].y)
         cv.stroke()
     }

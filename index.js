@@ -3,13 +3,13 @@ const img = new Image(47.7398, 47.7398)
 img.src = "planeicon.svg"
 
 //Simulation
-var time = 0
+var frame = 0
 var paused = false
 var alerted = false
 var hitCooldown = 0
 var pulsesLeftForGroup = 0
 var pulseRecord = []
-var lastPulseTime = 0
+var lastPulseFrame = 0
 var freqRecord = []
 var lastFreq = 0
 var deltaFreqRecord = []
@@ -29,20 +29,19 @@ var emitter = {x: 800, y: 600}
 // pulse settings
 var pulsesPerGroup = 1
 var pulseInterval = 1
-var pulseGroupInterval = 50
+var pulseGroupInterval = 20
 const radiusGrowth = 1
-const radiusTimeout = 800
+const radiusTimeout = 500
 // simulation settings
 const timeInterval = 5
-const estimatedMaxFreq = 0.04
-const estimatedMinFreq = 0
+const estimatedMaxFreq = 0.06
+const estimatedMinFreq = 0.04
 // graph settings
 const pulseColor = 'red'
 const freqColor = 'green'
 const deltaFreqColor = 'blue'
-const graphInterval = 25
 // save settings
-const saveInterval = 10000
+const saveInterval = 2000
 
 function checkCollision(plane, pulse) {
     //Sees if pulse hit the plane, use collisionRadius
@@ -87,13 +86,14 @@ function quadraticSolver(a, b, c){
 
 function calculateCollisionTime(plane, pulse){
     //Predict when the plane exactly hit the pulse
-    const vx = plane.v * Math.cos(plane.heading)
-    const vy = plane.v * Math.sin(plane.heading)
+    const lastPlane = planeRecord[planeRecord.length - 1]
+    const vx = plane.x - lastPlane.x //time unit is frames, not (milli)seconds
+    const vy = plane.y - lastPlane.y //
     const r0 = pulse.radius - radiusGrowth
-    const px = plane.x - pulse.startX
-    const py = plane.y - pulse.startY
+    const px = lastPlane.x - pulse.startX
+    const py = lastPlane.y - pulse.startY
     const a = vx**2 + vy**2 - radiusGrowth**2
-    const b = 2 * (vx*py + vy+py - radiusGrowth*r0)
+    const b = 2 * (vx*px + vy*py - radiusGrowth*r0)
     const c = px**2 + py**2 - r0**2
     const quadResult = quadraticSolver(a, b, c)
     if (quadResult == null) {console.log(`vx=${vx}\nvy=${vy}\nr0=${r0}\nradiusGrowth=${radiusGrowth}\npx=${px}\npy=${py}`); alert("Quadratic error")}
@@ -109,14 +109,13 @@ function redraw(canvas) {
     
     //Drawing plane
     rotateAndDrawImage(cv, img, plane.heading + Math.PI/2, plane.x, plane.y)
-    insertToRecord(planeRecord, Object.assign({}, plane))
 
     //Make a new pulse group if it's time to
-    if (!(time % pulseGroupInterval))pulsesLeftForGroup = pulsesPerGroup
+    if (!(frame % pulseGroupInterval))pulsesLeftForGroup = pulsesPerGroup
     //Make a new pulse if it's time to
-    if (!((time % pulseGroupInterval) % pulseInterval) && pulsesLeftForGroup){
+    if (!((frame % pulseGroupInterval) % pulseInterval) && pulsesLeftForGroup){
         pulses.push({
-            createTime: time,
+            createFrame: frame,
             startX: emitter.x,
             startY: emitter.y,
             rLessThanPlane: true, //whether the plane is outside the circle
@@ -129,6 +128,7 @@ function redraw(canvas) {
     if (pulses.length && pulses[0].radius >= radiusTimeout) pulses.shift(1) 
 
     cv.strokeStyle = '#AAAAAA'
+    var didGetPulse = false
     for (const pulse of pulses){ //For each pulse
         //Draw
         cv.beginPath(); 
@@ -137,17 +137,18 @@ function redraw(canvas) {
 
         //Check for hit
         if (checkCollision(plane, pulse)) {
+            didGetPulse = true
             insertToRecord(pulseRecord, 1)
             const collisionTime = calculateCollisionTime(plane, pulse)
-            const currentPulseTime = time - timeInterval + collisionTime
+            const currentPulseFrame = frame - 1 + collisionTime
             // console.log(time)
             // console.log(collisionTime)
             
-            if (lastPulseTime == 0){
-                lastPulseTime = currentPulseTime
+            if (lastPulseFrame == 0){
+                lastPulseFrame = currentPulseFrame
                 continue
             }
-            const thisFreq = 1/(currentPulseTime - lastPulseTime)
+            const thisFreq = 1/(currentPulseFrame - lastPulseFrame)
             insertToRecord(freqRecord, thisFreq)
             console.log(thisFreq)
 
@@ -158,56 +159,53 @@ function redraw(canvas) {
             const thisDeltaFreq = thisFreq - lastFreq
             insertToRecord(deltaFreqRecord, thisDeltaFreq)
 
-            lastPulseTime = currentPulseTime
+            lastPulseFrame = currentPulseFrame
             lastFreq = thisFreq
             lastDeltaFreq = thisDeltaFreq
-            lastColor = "#" + Math.round((((thisFreq - estimatedMinFreq) / (estimatedMaxFreq - estimatedMinFreq)) * 255)).toString(16).repeat(3)
+            lastColor = `hsla(${Math.round((((thisFreq - estimatedMinFreq) / (estimatedMaxFreq - estimatedMinFreq)) * 360))},100%,50%)`
             console.log(lastColor)
             insertToRecord(colorRecord, lastColor)
 
             //Save the data
+            const lastPlane = planeRecord[planeRecord.length - 1]
             const dataframe = {
-                time: time,
+                frame: frame,
                 freq: thisFreq,
                 dFreq: thisDeltaFreq,
-                pX: plane.x - plane.v*Math.cos(plane.heading)*(time-currentPulseTime),
-                pY: plane.y - plane.v*Math.sin(plane.heading)*(time-currentPulseTime),
-                pV: plane.v,
-                pH: plane.heading,
+                pX: plane.x - lastPlane.x,
+                pY: plane.y - lastPlane.y,
+                pV: lastPlane.v,
+                pH: lastPlane.heading,
                 eX: emitter.x,
                 eY: emitter.y
             }
-            save[time] = dataframe
-
-            break
-        }
-        else {
-            if (!(time % graphInterval)){
-                insertToRecord(pulseRecord, 0)
-                insertToRecord(freqRecord, lastFreq)
-                insertToRecord(deltaFreqRecord, lastDeltaFreq)
-                insertToRecord(colorRecord, lastColor)
-            }
+            save[frame] = dataframe
         }
 
         //Expand pulse
         pulse.radius += 1 * radiusGrowth
     }
 
+    if (!didGetPulse){
+        insertToRecord(colorRecord, lastColor)
+        insertToRecord(pulseRecord, 0)
+        insertToRecord(freqRecord, lastFreq)
+        insertToRecord(deltaFreqRecord, lastDeltaFreq)
+    }
+
     //Draw plane path
-    cv.beginPath();
-    cv.moveTo(plane.x, plane.y)
     let planeRecordLength = planeRecord.length
-    for (let i=0; i<planeRecordLength; i++){
+    for (let i=0; i<planeRecordLength-1; i++){
         cv.beginPath();
-        cv.strokeStyle = colorRecord[planeRecordLength-1-i]
-        cv.lineTo(planeRecord[planeRecordLength-1-i].x, planeRecord[planeRecordLength-1-i].y)
+        cv.moveTo(planeRecord[i].x, planeRecord[i].y)
+        cv.strokeStyle = colorRecord[i]
+        cv.lineTo(planeRecord[i+1].x, planeRecord[i+1].y)
         cv.stroke()
     }
     
 
     //check for save
-    if (time % saveInterval == 0 && time != 0){
+    if (frame % saveInterval == 0 && frame != 0){
         console.log(JSON.stringify(save, function(key, val) {
             if (typeof(val) == Number){
                 return Number(val.toFixed(3))
@@ -222,6 +220,7 @@ function redraw(canvas) {
 
 function movePlane(canvas){
     //Move the plane to the next position
+    insertToRecord(planeRecord, Object.assign({}, plane)) //Save old plane values before moving
     plane.x += plane.v * Math.cos(plane.heading)
     plane.y += plane.v * Math.sin(plane.heading)
     if (!alerted && (plane.x < 0 || plane.x > canvas.width || plane.y < 0 || plane.y > canvas.height)){
@@ -299,7 +298,7 @@ function drawStats(){
     Freq: ${fiveDecMil(lastFreq)}
     Delta Freq: ${fiveDecMil(lastDeltaFreq)}
     
-    Current Time: ${time}`
+    Current Frame: ${frame}`
 }
 
 window.onload = function(){
@@ -339,7 +338,7 @@ window.onload = function(){
             redraw(mapCanvas)
             drawGraphs(pulseGraphCanvas, freqGraphCanvas, deltaFreqGraphCanvas)
             drawStats()
-            time += timeInterval;
+            frame++;
         }
     },timeInterval)
  };
